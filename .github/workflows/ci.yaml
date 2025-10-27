@@ -38,15 +38,20 @@ jobs:
         uses: actions/checkout@v3
 
       # ------------------------
-      # Login to AWS ECR
+      # Login to AWS ECR (fixed)
       # ------------------------
       - name: Login to AWS ECR
         uses: aws-actions/amazon-ecr-login@v2
         with:
-          region: ${{ env.AWS_REGION }}
+          registries: ${{ env.ECR_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
 
+      # ------------------------
       # Pull Docker images from ECR
-      
+      # ------------------------
       - name: Pull Docker images
         run: |
           docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/api-gateway-java
@@ -55,8 +60,9 @@ jobs:
           docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/writer-service-node
           docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/frontend-react
 
+      # ------------------------
       # Run Unit Tests
-      
+      # ------------------------
       - name: Run unit tests
         run: |
           docker run --rm --link mysql:mysql $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/api-gateway-java mvn test
@@ -65,8 +71,9 @@ jobs:
           docker run --rm $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/writer-service-node npm test
           docker run --rm $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/frontend-react npm test
 
+      # ------------------------
       # SonarQube Scan (SAST / Code Quality)
-
+      # ------------------------
       - name: SonarQube Scan
         uses: sonarsource/sonarcloud-github-action@master
         with:
@@ -76,8 +83,9 @@ jobs:
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
             -Dsonar.login=${{ env.SONAR_TOKEN }}
 
+      # ------------------------
       # OWASP ZAP Scan (DAST)
-
+      # ------------------------
       - name: OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.7.0
         with:
