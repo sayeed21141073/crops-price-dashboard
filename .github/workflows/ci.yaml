@@ -1,4 +1,4 @@
-name: Security Checks Only
+name: Security & Code Quality Checks
 
 on:
   push:
@@ -9,7 +9,7 @@ on:
       - main
 
 jobs:
-  security:
+  security_quality:
     runs-on: ubuntu-latest
 
     env:
@@ -19,6 +19,17 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      # ------------------------
+      # Code Quality & Security with CodeQL
+      # ------------------------
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: java, javascript, python, go
+          # You can add custom queries if needed
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
 
       # ------------------------
       # Static Analysis (SAST) with SonarQube
@@ -31,7 +42,7 @@ jobs:
             -Dsonar.organization=your-org
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
             -Dsonar.login=${{ env.SONAR_TOKEN }}
-        continue-on-error: false   # Fail workflow if serious issues found
+        continue-on-error: false
 
       # ------------------------
       # Dynamic Analysis (DAST) with OWASP ZAP
@@ -42,4 +53,4 @@ jobs:
           target: 'http://localhost:8080' # Replace with your running app URL
           format: 'html'
           output: 'zap_report.html'
-          failOnError: true   # Fail workflow if high risk vulnerabilities are detected
+          failOnError: true
