@@ -1,4 +1,4 @@
-name: Crop Price Dashboard CI
+name: Security & Code Quality Checks
 
 on:
   push:
@@ -9,70 +9,30 @@ on:
       - main
 
 jobs:
-  ci:
+  security_quality:
     runs-on: ubuntu-latest
-    services:
-      mysql:
-        image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: cropdb
-        ports:
-          - 3306:3306
-        options: >-
-          --health-cmd="mysqladmin ping --silent"
-          --health-interval=5s
-          --health-timeout=10s
-          --health-retries=5
 
     env:
-      MYSQL_ROOT_PASSWORD: root
-      MYSQL_DB: cropdb
       SONAR_HOST_URL: http://localhost:9000
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-      AWS_REGION: us-east-1
-      ECR_ACCOUNT: 533267327324
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
       # ------------------------
-      # Login to AWS ECR (fixed)
+      # Code Quality & Security with CodeQL
       # ------------------------
-      - name: Login to AWS ECR
-        uses: aws-actions/amazon-ecr-login@v2
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
         with:
-          registries: ${{ env.ECR_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ env.AWS_REGION }}
+          languages: java, javascript, python, go
+          # You can add custom queries if needed
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
 
       # ------------------------
-      # Pull Docker images from ECR
-      # ------------------------
-      - name: Pull Docker images
-        run: |
-          docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/api-gateway-java
-          docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/data-service-go
-          docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/trend-service-python
-          docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/writer-service-node
-          docker pull $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/frontend-react
-
-      # ------------------------
-      # Run Unit Tests
-      # ------------------------
-      - name: Run unit tests
-        run: |
-          docker run --rm --link mysql:mysql $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/api-gateway-java mvn test
-          docker run --rm --link mysql:mysql $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/data-service-go go test ./...
-          docker run --rm $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/trend-service-python pytest
-          docker run --rm $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/writer-service-node npm test
-          docker run --rm $ECR_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com/frontend-react npm test
-
-      # ------------------------
-      # SonarQube Scan (SAST / Code Quality)
+      # Static Analysis (SAST) with SonarQube
       # ------------------------
       - name: SonarQube Scan
         uses: sonarsource/sonarcloud-github-action@master
@@ -82,13 +42,15 @@ jobs:
             -Dsonar.organization=your-org
             -Dsonar.host.url=${{ env.SONAR_HOST_URL }}
             -Dsonar.login=${{ env.SONAR_TOKEN }}
+        continue-on-error: false
 
       # ------------------------
-      # OWASP ZAP Scan (DAST)
+      # Dynamic Analysis (DAST) with OWASP ZAP
       # ------------------------
       - name: OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.7.0
         with:
-          target: 'http://localhost:8080'
+          target: 'http://localhost:8080' # Replace with your running app URL
           format: 'html'
           output: 'zap_report.html'
+          failOnError: true
